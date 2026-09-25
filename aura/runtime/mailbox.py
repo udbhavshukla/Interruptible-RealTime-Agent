@@ -223,6 +223,6 @@ class SessionMailbox:
     def __repr__(self) -> str:
         return (
             f"SessionMailbox(session_id={self._session_id!r}, "
-            f"maxsize={self._maxsize}, control={len(self._control)}, "
-            f"data={len(self._data)}, next_seq={self._next_seq})"
+            f"maxsize={self._maxsize}, control={self.control_size}, "
+            f"data={self.data_size}, next_seq={self._next_seq})"
         )

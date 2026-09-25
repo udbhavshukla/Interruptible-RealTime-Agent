@@ -103,6 +103,19 @@ class MailboxOrderingTests(unittest.IsolatedAsyncioTestCase):
             [e.payload["name"] for e in got], ["c1", "c2", "d1", "d2"]
         )
 
+    async def test_lane_sizes_report_each_priority(self):
+        mailbox = SessionMailbox(SESSION, maxsize=16)
+        await mailbox.put(make_event(), priority=Priority.DATA)
+        await mailbox.put(make_event(), priority=Priority.CONTROL)
+        await mailbox.put(make_event(), priority=Priority.DATA)
+        self.assertEqual(mailbox.control_size, 1)
+        self.assertEqual(mailbox.data_size, 2)
+        self.assertEqual(mailbox.qsize, 3)  # both lanes together
+
+        await mailbox.get()  # the CONTROL lane drains first
+        self.assertEqual(mailbox.control_size, 0)
+        self.assertEqual(mailbox.data_size, 2)  # DATA waits its turn
+
     async def test_seq_is_monotonically_increasing(self):
         mailbox = SessionMailbox(SESSION, maxsize=16)
         for i in range(5):
