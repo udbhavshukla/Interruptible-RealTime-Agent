@@ -462,5 +462,101 @@ class RunLoopTests(CoordinatorTestCase):
             await self.cleanup_active(coordinator)
 
 
+class SingleConsumerGuardTests(CoordinatorTestCase):
+    """I2 hardening: exactly one consumer may run ``process_next()`` at a time."""
+
+    async def test_single_consumer_processes_normally(self):
+        """Sequential consumption by one consumer stays the normal path."""
+        coordinator, _ = self.make_coordinator()
+        await self.process(
+            coordinator, user_event(EventType.USER_INPUT, "Find flight Bangalore to Delhi")
+        )
+        await self.process(
+            coordinator, user_event(EventType.USER_INTERRUPT, "Actually Mumbai")
+        )
+        self.assertEqual(coordinator.current_version, 2)
+
+        # The superseded call_001 settles cancelled; its outcome is the only
+        # possible next event (call_002 still runs), so get() cannot pick
+        # anything else — consume it, then the queue is fully drained.
+        outcome = await asyncio.wait_for(coordinator.process_next(), TOOL_TIMEOUT)
+        self.assertEqual(outcome.event_type, EventType.TASK_CANCELLED)
+        self.assertEqual(coordinator.mailbox.unfinished_tasks, 0)
+        await self.cleanup_active(coordinator)
+
+    async def test_concurrent_second_consumer_is_rejected(self):
+        coordinator, _ = self.make_coordinator()
+
+        # The first consumer enters process_next() and blocks in mailbox.get()
+        # (the mailbox is empty), still holding the single-consumer guard.
+        first = asyncio.create_task(coordinator.process_next())
+        await asyncio.sleep(0)  # deterministic single yield (ready-queue FIFO)
+        self.assertFalse(first.done())  # provably waiting inside get()
+
+        # A second, concurrent consumer is rejected without touching the mailbox.
+        with self.assertRaises(RuntimeError) as caught:
+            await coordinator.process_next()
+        self.assertIn("active consumer", str(caught.exception))
+        self.assertFalse(first.done())  # first still owns the guard
+
+        # The rejection consumed nothing: the first consumer still works.
+        await coordinator.mailbox.put(
+            user_event(EventType.USER_INPUT, "Find flight Bangalore to Delhi")
+        )
+        event = await asyncio.wait_for(first, TOOL_TIMEOUT)
+        self.assertEqual(event.event_type, EventType.USER_INPUT)
+        self.assertEqual(coordinator.current_version, 1)
+        self.assertEqual(coordinator.mailbox.unfinished_tasks, 0)
+        await self.cleanup_active(coordinator)
+
+    async def test_guard_released_after_processing_completes(self):
+        coordinator, _ = self.make_coordinator()
+        # One consumer processes an event to completion ...
+        await coordinator.mailbox.put(
+            user_event(EventType.USER_INPUT, "Find flight Bangalore to Delhi")
+        )
+        await asyncio.wait_for(coordinator.process_next(), TOOL_TIMEOUT)
+
+        # ... and a *different* consumer task may take the next one.
+        await coordinator.mailbox.put(
+            user_event(EventType.USER_INTERRUPT, "Actually Mumbai")
+        )
+        second = asyncio.create_task(coordinator.process_next())
+        event = await asyncio.wait_for(second, TOOL_TIMEOUT)
+        self.assertEqual(event.event_type, EventType.USER_INTERRUPT)
+        self.assertEqual(coordinator.current_version, 2)
+
+        # The superseded call_001's cancellation outcome arrives next —
+        # consuming it proves the guard stays released for yet another step.
+        outcome = await asyncio.wait_for(coordinator.process_next(), TOOL_TIMEOUT)
+        self.assertEqual(outcome.event_type, EventType.TASK_CANCELLED)
+        self.assertEqual(coordinator.mailbox.unfinished_tasks, 0)
+        await self.cleanup_active(coordinator)
+
+    async def test_guard_released_if_processing_raises(self):
+        """Cancellation is the exception that escapes process_next()
+        (handler errors are contained as RUNTIME_ERROR events); the guard
+        must be released on that path too."""
+        coordinator, _ = self.make_coordinator()
+
+        first = asyncio.create_task(coordinator.process_next())
+        await asyncio.sleep(0)  # deterministic single yield (ready-queue FIFO)
+        self.assertFalse(first.done())
+
+        first.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await first
+
+        # The guard was released despite the exception: a new consumer works.
+        await coordinator.mailbox.put(
+            user_event(EventType.USER_INPUT, "Find flight Bangalore to Delhi")
+        )
+        event = await asyncio.wait_for(coordinator.process_next(), TOOL_TIMEOUT)
+        self.assertEqual(event.event_type, EventType.USER_INPUT)
+        self.assertEqual(coordinator.current_version, 1)
+        self.assertEqual(coordinator.mailbox.unfinished_tasks, 0)
+        await self.cleanup_active(coordinator)
+
+
 if __name__ == "__main__":
     unittest.main()

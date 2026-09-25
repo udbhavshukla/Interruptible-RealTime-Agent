@@ -16,7 +16,9 @@ Invariant mapping
   it events.
 - **I2 total order** : one consumer; events are consumed from the mailbox in
   ``seq`` order (CONTROL before DATA), one at a time. Handlers never await
-  I/O, so no transition interleaves.
+  I/O, so no transition interleaves. A second concurrent consumer is
+  rejected with ``RuntimeError`` (single-consumer guard in
+  ``process_next``).
 - **I3 version tagging** : a call is spawned from the *current* snapshot and
   the registry stamps ``spawn_version``; the future-work guarantee follows
   because the version is advanced *before* new work is spawned.
@@ -99,6 +101,7 @@ class Coordinator:
         self._state: Optional[SessionState] = None
         self._active: Dict[str, int] = {}  # call_id -> spawn_version
         self._call_counter = 0
+        self._consuming = False  # I2 guard: at most one process_next() in flight
         self._emitted: List[Event] = []
         self._watchers: List[asyncio.Task] = []
         self.accepted_results: Dict[str, Any] = {}
@@ -149,22 +152,37 @@ class Coordinator:
         Never raises for handler bugs — they become ``RUNTIME_ERROR`` events
         in the outbox. The mailbox ``task_done()`` bookkeeping is always
         balanced for consumed events.
+
+        Single consumer (I2): only one call may be in flight at a time. A
+        second concurrent caller — e.g. ``run()`` running alongside a manual
+        ``process_next()`` — gets ``RuntimeError`` instead of silently
+        interleaving consumption. The guard is released on every exit path
+        (normal return, contained handler error, cancellation).
         """
-        event = await self._mailbox.get()
-        try:
-            self._dispatch(event)
-        except Exception as exc:  # handler bug must not kill the consumer
-            self._emit(
-                EventType.RUNTIME_ERROR,
-                {
-                    "error": f"{type(exc).__name__}: {exc}",
-                    "event_type": str(event.event_type),
-                },
-                caused_by=event,
+        if self._consuming:
+            raise RuntimeError(
+                "coordinator already has an active consumer; "
+                "process_next() must not be called concurrently"
             )
+        self._consuming = True
+        try:
+            event = await self._mailbox.get()
+            try:
+                self._dispatch(event)
+            except Exception as exc:  # handler bug must not kill the consumer
+                self._emit(
+                    EventType.RUNTIME_ERROR,
+                    {
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "event_type": str(event.event_type),
+                    },
+                    caused_by=event,
+                )
+            finally:
+                self._mailbox.task_done()
+            return event
         finally:
-            self._mailbox.task_done()
-        return event
+            self._consuming = False
 
     async def run(self) -> None:
         """Consume events forever (single consumer). Cancels cleanly."""
