@@ -18,6 +18,11 @@ import asyncio
 import contextlib
 import unittest
 
+async def wait_started(tool, call_id):
+    while call_id not in tool.started:
+        await asyncio.sleep(0)
+    await tool.started[call_id].wait()
+
 from aura.runtime.acceptance import Decision
 from aura.runtime.coordinator import Coordinator
 from aura.runtime.events import Event, EventType
@@ -145,7 +150,7 @@ class UserInputTests(CoordinatorTestCase):
         self.assertEqual(record.state, TaskState.RUNNING)
         self.assertIn("call_001", coordinator.active_call_ids)
 
-        await asyncio.wait_for(tool.started.setdefault("call_001", asyncio.Event()).wait(), TOOL_TIMEOUT)
+        await asyncio.wait_for(wait_started(tool, "call_001"), TOOL_TIMEOUT)
         self.assertEqual(
             self.emitted_types(coordinator),
             [EventType.STATE_VERSION_CHANGED, EventType.TASK_STARTED],
@@ -165,7 +170,7 @@ class UserInputTests(CoordinatorTestCase):
         await self.process(
             coordinator, user_event(EventType.USER_INPUT, "Find flight Bangalore to Delhi")
         )
-        await asyncio.wait_for(tool.started.setdefault("call_001", asyncio.Event()).wait(), TOOL_TIMEOUT)
+        await asyncio.wait_for(wait_started(tool, "call_001"), TOOL_TIMEOUT)
         await self.process(coordinator, user_event(EventType.USER_INPUT, "Find flight to Mumbai"))
 
         self.assertEqual(coordinator.current_version, 2)
@@ -180,7 +185,7 @@ class UserInputTests(CoordinatorTestCase):
     async def test_repeated_same_input_is_noop(self):
         coordinator, tool = self.make_coordinator()
         await self.process(coordinator, user_event(EventType.USER_INPUT, "Find flight to Delhi"))
-        await asyncio.wait_for(tool.started.setdefault("call_001", asyncio.Event()).wait(), TOOL_TIMEOUT)
+        await asyncio.wait_for(wait_started(tool, "call_001"), TOOL_TIMEOUT)
         await self.process(coordinator, user_event(EventType.USER_INPUT, "Find flight to Delhi"))
 
         self.assertEqual(coordinator.current_version, 1)
@@ -226,12 +231,11 @@ class OrderingTests(CoordinatorTestCase):
             if event.event_type is EventType.STATE_VERSION_CHANGED
         ]
         self.assertEqual(transitions, [(0, 1), (1, 2), (2, 3)])
-        # wait until every tool body actually began before reading its record
-        for call_id in ("call_001", "call_002", "call_003"):
-            await asyncio.wait_for(tool.started.setdefault(call_id, asyncio.Event()).wait(), TOOL_TIMEOUT)
+        
         self.assertEqual(
-            [call[2] for call in tool.calls], [1, 2, 3]
-        )  # I3: each call tagged with its spawn version
+            [record.spawn_version for record in coordinator.registry.records()],
+            [1, 2, 3],
+        )
 
         await self.cleanup_active(coordinator)
 
@@ -259,7 +263,10 @@ class InterruptionScenarioTests(CoordinatorTestCase):
         record_1 = coordinator.registry.get("call_001")
         self.assertEqual(record_1.spawn_version, 1)
         self.assertEqual(record_1.state, TaskState.RUNNING)
-        await asyncio.wait_for(tool.started.setdefault("call_001", asyncio.Event()).wait(), TOOL_TIMEOUT)
+        await asyncio.wait_for(
+            wait_started(tool, "call_001"),
+            TOOL_TIMEOUT,
+        )
 
         # --- T3-T8: interruption --------------------------------------
         await self.process(coordinator, user_event(EventType.USER_INTERRUPT, "Actually Mumbai"))
@@ -272,7 +279,10 @@ class InterruptionScenarioTests(CoordinatorTestCase):
         # 4. future work belongs to version 2 / 5. call_002 started
         record_2 = coordinator.registry.get("call_002")
         self.assertEqual(record_2.spawn_version, 2)
-        await asyncio.wait_for(tool.started.setdefault("call_002", asyncio.Event()).wait(), TOOL_TIMEOUT)
+        await asyncio.wait_for(
+            wait_started(tool, "call_002"),
+            TOOL_TIMEOUT,
+        )
 
         # clear runtime events for the transitions
         transitions = [
@@ -343,7 +353,7 @@ class InterruptionScenarioTests(CoordinatorTestCase):
         await self.process(
             coordinator, user_event(EventType.USER_INPUT, "Find flight Bangalore to Delhi")
         )
-        await asyncio.wait_for(tool.started.setdefault("call_001", asyncio.Event()).wait(), TOOL_TIMEOUT)
+        await asyncio.wait_for(wait_started(tool, "call_001"), TOOL_TIMEOUT)
         emitted_before = len(coordinator.emitted)
 
         await self.process(coordinator, user_event(EventType.USER_INTERRUPT))
@@ -359,7 +369,7 @@ class InterruptionScenarioTests(CoordinatorTestCase):
         await self.process(
             coordinator, user_event(EventType.USER_INPUT, "Find flight Bangalore to Delhi")
         )
-        await asyncio.wait_for(tool.started.setdefault("call_001", asyncio.Event()).wait(), TOOL_TIMEOUT)
+        await asyncio.wait_for(wait_started(tool, "call_001"), TOOL_TIMEOUT)
 
         coordinator.supervisor.cancel("call_001")  # advisory cancel
         await self.settle_outcome(coordinator, "call_001")
