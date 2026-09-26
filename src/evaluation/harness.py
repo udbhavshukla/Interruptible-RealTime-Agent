@@ -49,10 +49,24 @@ def load_scenario(name_or_path: str | Path) -> dict:
 
 
 def scenario_paths() -> list[Path]:
-    """Return every scenario file in ``scenarios/``, sorted by name."""
+    """Return evaluation scenarios that use the expected_event_order schema."""
     if not SCENARIOS_DIR.is_dir():
         return []
-    return sorted(SCENARIOS_DIR.glob("*.json"))
+
+    paths = []
+
+    for path in SCENARIOS_DIR.glob("*.json"):
+        try:
+            with path.open("r", encoding="utf-8") as fh:
+                scenario = json.load(fh)
+
+            if "expected_event_order" in scenario:
+                paths.append(path)
+
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    return sorted(paths)
 
 
 def expected_event_order(scenario: dict) -> list[str]:
