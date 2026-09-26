@@ -21,6 +21,33 @@ from harness.runner import run_scenario
 from harness.scorer import score_scenario, format_report
 
 
+def is_kit_scenario(scenario: dict) -> bool:
+    """True when *scenario* matches the streaming-harness schema.
+
+    The runner replays ``events[].timestamp_ms`` and the scorer grades
+    ``ground_truth``; both index ``scenario_id``.  Other files in
+    ``scenarios/`` (Member-4 evaluation traces, step-based fixtures) use
+    different schemas and must be skipped by ``--all`` discovery.
+    """
+    return bool(scenario.get("scenario_id")) and isinstance(
+        scenario.get("events"), list
+    )
+
+
+def kit_scenario_paths(pattern: str) -> tuple[list[str], list[str]]:
+    """Split files matching *pattern* into (compatible, skipped) paths."""
+    kept, skipped = [], []
+    for path in sorted(glob.glob(pattern)):
+        try:
+            with open(path) as f:
+                scenario = json.load(f)
+        except (OSError, ValueError):
+            skipped.append(path)
+            continue
+        (kept if is_kit_scenario(scenario) else skipped).append(path)
+    return kept, skipped
+
+
 def load_agent_factory(spec: str):
     module_name, _, class_name = spec.partition(":")
     if not class_name:
@@ -50,7 +77,10 @@ def main():
     if args.scenario:
         paths.append(args.scenario)
     if args.all:
-        paths.extend(sorted(glob.glob("scenarios/*.json")))
+        kept, skipped = kit_scenario_paths("scenarios/*.json")
+        paths.extend(kept)
+        for path in skipped:
+            print(f"skipping non-harness scenario file: {path}")
     if not paths:
         ap.error("provide --scenario PATH or --all")
 
