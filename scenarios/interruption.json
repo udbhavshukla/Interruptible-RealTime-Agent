@@ -1,0 +1,155 @@
+{
+  "id": "interruption",
+  "description": "Mock evaluation scenario: the user interrupts a flight lookup, the in-flight call is cancelled, state is updated Delhi -> Mumbai, a new call is issued, and the final response uses Mumbai.",
+  "evaluation_only": true,
+  "uses_mock_data": true,
+
+  "initial_user_input": "Find a flight from Bangalore to Delhi.",
+  "interrupt_user_input": "Actually Mumbai, not Delhi.",
+  "initial_destination": "Delhi",
+  "corrected_destination": "Mumbai",
+  "origin": "Bangalore",
+  "cancelled_call_id": "call_001",
+  "new_call_id": "call_002",
+  "initial_state_version": 1,
+  "updated_state_version": 2,
+
+  "expected_event_order": [
+    "USER_INPUT",
+    "FAST_ACK",
+    "TOOL_CALL",
+    "USER_INTERRUPT",
+    "CANCEL",
+    "STATE_UPDATE",
+    "TOOL_CALL",
+    "TOOL_RESULT",
+    "FINAL_RESPONSE"
+  ],
+
+  "events": [
+    {
+      "type": "USER_INPUT",
+      "timestamp": 0.0,
+      "payload": {
+        "user_input": "Find a flight from Bangalore to Delhi.",
+        "origin": "Bangalore",
+        "destination": "Delhi"
+      }
+    },
+    {
+      "type": "FAST_ACK",
+      "timestamp": 0.1,
+      "payload": {
+        "acknowledgement": "Looking up flights from Bangalore to Delhi.",
+        "acknowledged_input": "Find a flight from Bangalore to Delhi."
+      }
+    },
+    {
+      "type": "TOOL_CALL",
+      "timestamp": 0.2,
+      "payload": {
+        "tool_call_id": "call_001",
+        "tool_name": "flight_search",
+        "origin": "Bangalore",
+        "destination": "Delhi",
+        "state_version": 1
+      }
+    },
+    {
+      "type": "USER_INTERRUPT",
+      "timestamp": 0.6,
+      "payload": {
+        "user_input": "Actually Mumbai, not Delhi.",
+        "supersedes_call_id": "call_001",
+        "intended_destination": "Mumbai"
+      }
+    },
+    {
+      "type": "CANCEL",
+      "timestamp": 0.7,
+      "payload": {
+        "tool_call_id": "call_001",
+        "reason": "user_interrupt",
+        "state_version": 1
+      }
+    },
+    {
+      "type": "STATE_UPDATE",
+      "timestamp": 0.8,
+      "payload": {
+        "field": "destination",
+        "old_value": "Delhi",
+        "new_value": "Mumbai",
+        "old_state_version": 1,
+        "state_version": 2
+      }
+    },
+    {
+      "type": "TOOL_CALL",
+      "timestamp": 0.9,
+      "payload": {
+        "tool_call_id": "call_002",
+        "tool_name": "flight_search",
+        "origin": "Bangalore",
+        "destination": "Mumbai",
+        "state_version": 2
+      }
+    },
+    {
+      "type": "TOOL_RESULT",
+      "timestamp": 1.7,
+      "payload": {
+        "tool_call_id": "call_002",
+        "status": "success",
+        "origin": "Bangalore",
+        "destination": "Mumbai",
+        "state_version": 2,
+        "flights": [
+          {"flight_number": "6E-455", "departure": "07:10", "arrival": "09:05", "price_inr": 3499},
+          {"flight_number": "SG-8721", "departure": "12:40", "arrival": "14:30", "price_inr": 4199}
+        ]
+      }
+    },
+    {
+      "type": "FINAL_RESPONSE",
+      "timestamp": 1.9,
+      "payload": {
+        "response": "Here are flights from Bangalore to Mumbai: 6E-455 at 07:10 for ₹3,499 and SG-8721 at 12:40 for ₹4,199.",
+        "origin": "Bangalore",
+        "destination": "Mumbai",
+        "tool_call_id": "call_002",
+        "state_version": 2
+      }
+    }
+  ],
+
+  "verification": {
+    "interruption_occurred": true,
+    "old_call_cancelled": true,
+    "state_version_changed": true,
+    "new_call_created": true,
+    "new_destination_is_mumbai": true,
+    "final_response_uses_mumbai": true,
+    "cancelled_call_id": "call_001",
+    "new_call_id": "call_002",
+    "destination_before": "Delhi",
+    "destination_after": "Mumbai",
+    "state_version_before": 1,
+    "state_version_after": 2
+  },
+
+  "expected_metrics": {
+    "event_counts": {
+      "USER_INPUT": 1,
+      "FAST_ACK": 1,
+      "TOOL_CALL": 2,
+      "USER_INTERRUPT": 1,
+      "CANCEL": 1,
+      "STATE_UPDATE": 1,
+      "TOOL_RESULT": 1,
+      "FINAL_RESPONSE": 1
+    },
+    "interruption_count": 1,
+    "stale_result_count": 0
+  }
+}

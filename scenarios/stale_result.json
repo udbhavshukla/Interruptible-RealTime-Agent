@@ -1,0 +1,163 @@
+{
+  "id": "stale_result",
+  "description": "Mock evaluation scenario: the original Delhi call (call_001, state_version 1) returns after the user switched to Mumbai (state_version 2). The late result must be rejected as stale because its state_version is older than the current state version.",
+  "evaluation_only": true,
+  "uses_mock_data": true,
+
+  "origin": "Bangalore",
+  "initial_destination": "Delhi",
+  "changed_destination": "Mumbai",
+
+  "old_call_id": "call_001",
+  "old_call_state_version": 1,
+  "new_call_id": "call_002",
+  "new_call_state_version": 2,
+  "current_state_version": 2,
+
+  "expected_event_order": [
+    "USER_INPUT",
+    "FAST_ACK",
+    "TOOL_CALL",
+    "USER_INPUT",
+    "STATE_UPDATE",
+    "TOOL_CALL",
+    "TOOL_RESULT",
+    "TOOL_RESULT",
+    "STALE_REJECT"
+  ],
+
+  "events": [
+    {
+      "type": "USER_INPUT",
+      "timestamp": 0.0,
+      "payload": {
+        "user_input": "Find a flight from Bangalore to Delhi.",
+        "origin": "Bangalore",
+        "destination": "Delhi",
+        "state_version": 1
+      }
+    },
+    {
+      "type": "FAST_ACK",
+      "timestamp": 0.1,
+      "payload": {
+        "acknowledgement": "Looking up flights from Bangalore to Delhi.",
+        "state_version": 1
+      }
+    },
+    {
+      "type": "TOOL_CALL",
+      "timestamp": 0.2,
+      "payload": {
+        "tool_call_id": "call_001",
+        "tool_name": "flight_search",
+        "origin": "Bangalore",
+        "destination": "Delhi",
+        "state_version": 1
+      }
+    },
+    {
+      "type": "USER_INPUT",
+      "timestamp": 0.5,
+      "payload": {
+        "user_input": "Change the destination to Mumbai instead.",
+        "change": "destination",
+        "origin": "Bangalore",
+        "destination": "Mumbai",
+        "state_version": 2,
+        "supersedes_call_id": "call_001"
+      }
+    },
+    {
+      "type": "STATE_UPDATE",
+      "timestamp": 0.6,
+      "payload": {
+        "field": "destination",
+        "old_value": "Delhi",
+        "new_value": "Mumbai",
+        "old_state_version": 1,
+        "state_version": 2
+      }
+    },
+    {
+      "type": "TOOL_CALL",
+      "timestamp": 0.7,
+      "payload": {
+        "tool_call_id": "call_002",
+        "tool_name": "flight_search",
+        "origin": "Bangalore",
+        "destination": "Mumbai",
+        "state_version": 2
+      }
+    },
+    {
+      "type": "TOOL_RESULT",
+      "timestamp": 1.4,
+      "payload": {
+        "tool_call_id": "call_002",
+        "status": "success",
+        "origin": "Bangalore",
+        "destination": "Mumbai",
+        "state_version": 2,
+        "flights": [
+          {"flight_number": "6E-455", "departure": "07:10", "arrival": "09:05", "price_inr": 3499},
+          {"flight_number": "SG-8721", "departure": "12:40", "arrival": "14:30", "price_inr": 4199}
+        ]
+      }
+    },
+    {
+      "type": "TOOL_RESULT",
+      "timestamp": 2.1,
+      "payload": {
+        "tool_call_id": "call_001",
+        "status": "success",
+        "origin": "Bangalore",
+        "destination": "Delhi",
+        "state_version": 1,
+        "late": true,
+        "flights": [
+          {"flight_number": "AI-501", "departure": "06:30", "arrival": "08:45", "price_inr": 4299}
+        ]
+      }
+    },
+    {
+      "type": "STALE_REJECT",
+      "timestamp": 2.2,
+      "payload": {
+        "rejected_call_id": "call_001",
+        "old_call_state_version": 1,
+        "current_state_version": 2,
+        "current_call_id": "call_002",
+        "reason": "state_version_older_than_current",
+        "rejected_destination": "Delhi",
+        "current_destination": "Mumbai"
+      }
+    }
+  ],
+
+  "verification": {
+    "old_call_id": "call_001",
+    "old_call_state_version": 1,
+    "new_call_id": "call_002",
+    "current_state_version": 2,
+    "stale_result_rejected": true,
+    "stale_reject_emitted": true,
+    "old_version_is_older_than_current": true,
+    "correct_result_accepted": true,
+    "current_destination": "Mumbai",
+    "rejected_destination": "Delhi"
+  },
+
+  "expected_metrics": {
+    "event_counts": {
+      "USER_INPUT": 2,
+      "FAST_ACK": 1,
+      "STATE_UPDATE": 1,
+      "TOOL_CALL": 2,
+      "TOOL_RESULT": 2,
+      "STALE_REJECT": 1
+    },
+    "interruption_count": 0,
+    "stale_result_count": 1
+  }
+}
