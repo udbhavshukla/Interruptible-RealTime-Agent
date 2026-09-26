@@ -321,10 +321,45 @@ class Coordinator:
         try:
             await task
         except asyncio.CancelledError:
-            pass  # expected for cancelled calls; the record already settled
+            # Task was explicitly cancelled by asyncio; ensure the registry
+            # settles to CANCELLED so the gate sees the correct terminal state.
+            record = self._registry.get(call_id)
+            if record.state is not TaskState.CANCELLED:
+                self._registry.mark_cancelled(call_id)
+            # Record the event type for the mailbox put below.
+            etype = EventType.TASK_CANCELLED
+            await self._mailbox.put(
+                Event(
+                    session_id=self._session_id,
+                    event_type=etype,
+                    payload={
+                        "call_id": call_id,
+                        "state": TaskState.CANCELLED.value,
+                        "spawn_version": record.spawn_version,
+                    },
+                    actor=f"task:{call_id}",
+                    version=self.current_version,
+                ),
+                priority=Priority.DATA,
+            )
+            return
 
+        # Task completed without CancelledError — check the registry state.
         record = self._registry.get(call_id)
-        etype = _OUTCOME_EVENTS.get(record.state, EventType.TASK_COMPLETED)
+        # If the registry says CANCEL_REQUESTED (cancellation was requested
+        # before the task body started, or the tool ignored cancellation),
+        # still emit TASK_CANCELLED so the gate can reject the late result
+        # as STALE via the version-mismatch rule, and the cancel_requested
+        # flag stays visible for audit.  Do NOT map CANCEL_REQUESTED to
+        # TASK_COMPLETED — that would lose the cancellation signal.
+        if record.state is TaskState.CANCEL_REQUESTED:
+            # Mark the record as CANCELLED so future look-ups are consistent
+            # and the gate's version‑mismatch rule fires correctly.
+            self._registry.mark_cancelled(call_id)
+            etype = EventType.TASK_CANCELLED
+        else:
+            etype = _OUTCOME_EVENTS.get(record.state, EventType.TASK_COMPLETED)
+
         await self._mailbox.put(
             Event(
                 session_id=self._session_id,
