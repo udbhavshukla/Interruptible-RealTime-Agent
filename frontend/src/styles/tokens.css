@@ -1,0 +1,130 @@
+/* AURA semantic theme tokens — SYNTHETIC LIME + BIO BLACK.
+   :root holds the dark theme (default, pre-paint safe).
+   [data-theme="light"] overrides for light mode.
+   Legacy --bg/--blue/--cyan names are kept as aliases so every
+   component consumes the semantic system without hard-coded colors. */
+:root {
+  color-scheme: dark;
+
+  --color-bg: #06110d;
+  --color-bg-elevated: #0a1712;
+  --color-surface: #0e1d17;
+  --color-glass: rgba(255, 255, 255, 0.055);
+  --color-glass-hover: rgba(255, 255, 255, 0.085);
+  --color-glass-strong: rgba(255, 255, 255, 0.09);
+  --color-field: rgba(3, 9, 6, 0.6);
+  --color-border: rgba(200, 255, 0, 0.12);
+  --color-border-strong: rgba(200, 255, 0, 0.22);
+  --color-line: rgba(255, 255, 255, 0.07);
+  --color-row-hover: rgba(255, 255, 255, 0.035);
+  --color-scrim: rgba(2, 8, 5, 0.62);
+  --color-nav-bg: rgba(5, 13, 9, 0.72);
+
+  --color-text: #f5f7f3;
+  --color-text-dim: #b8c0b8;
+  --color-text-muted: #8c968d;
+
+  --color-accent: #c8ff00;
+  --color-accent-fg: #06110d;
+  --color-accent-ink: #d6ff4b;
+  --color-accent-soft: rgba(200, 255, 0, 0.12);
+
+  --color-success: #c8ff00;
+  --color-success-ink: #d6ff4b;
+  --color-warning: #f4c95d;
+  --color-error: #ff6b6b;
+  --color-info: #5eead4;
+  --color-violet: #b7c9a8;
+
+  --color-chart-1: #c8ff00;
+  --color-chart-2: #5eead4;
+  --color-chart-3: #7fa36b;
+  --color-chart-4: #f4c95d;
+
+  --color-json-k: #9df0c8;
+  --color-json-s: #d6ff4b;
+  --color-json-n: #b7c9a8;
+  --color-json-b: #f4c95d;
+
+  --color-btn-primary-text: #06110d;
+  --color-knob: #06110d;
+  --color-avatar-text: #06110d;
+
+  /* legacy aliases consumed across components */
+  --bg-0: var(--color-bg);
+  --bg-1: var(--color-bg-elevated);
+  --bg-2: var(--color-surface);
+  --blue: var(--color-accent);
+  --blue-soft: var(--color-accent-ink);
+  --indigo: var(--color-accent);
+  --cyan: var(--color-info);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --error: var(--color-error);
+  --text: var(--color-text);
+  --text-dim: var(--color-text-dim);
+  --text-faint: var(--color-text-muted);
+  --glass-bg: var(--color-glass);
+  --glass-bg-strong: var(--color-glass-strong);
+  --glass-border: var(--color-border);
+  --glass-blur: 20px;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 12px 40px rgba(1, 6, 4, 0.55);
+  --grad-brand: linear-gradient(135deg, #c8ff00 0%, #9fe870 55%, #5eead4 130%);
+  --sidebar-w: 248px;
+  --sidebar-w-collapsed: 76px;
+  --topbar-h: 64px;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: "SFMono-Regular", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg: #f5f7f2;
+  --color-bg-elevated: #eef2e9;
+  --color-surface: #edf1ea;
+  --color-glass: rgba(255, 255, 255, 0.72);
+  --color-glass-hover: rgba(255, 255, 255, 0.9);
+  --color-glass-strong: rgba(255, 255, 255, 0.85);
+  --color-field: rgba(255, 255, 255, 0.9);
+  --color-border: rgba(6, 17, 13, 0.1);
+  --color-border-strong: rgba(6, 17, 13, 0.16);
+  --color-line: rgba(6, 17, 13, 0.08);
+  --color-row-hover: rgba(6, 17, 13, 0.035);
+  --color-scrim: rgba(6, 17, 13, 0.42);
+  --color-nav-bg: rgba(255, 255, 255, 0.78);
+
+  --color-text: #06110d;
+  --color-text-dim: #3f4942;
+  --color-text-muted: #68736a;
+
+  --color-accent: #c8ff00;
+  --color-accent-fg: #06110d;
+  --color-accent-ink: #3f6212;
+  --color-accent-soft: rgba(77, 124, 15, 0.12);
+
+  --color-success: #2f7a1f;
+  --color-success-ink: #2f7a1f;
+  --color-warning: #7c5e00;
+  --color-error: #c83a3a;
+  --color-info: #0e7490;
+  --color-violet: #5b6e46;
+
+  --color-chart-1: #65a30d;
+  --color-chart-2: #0e7490;
+  --color-chart-3: #3f6212;
+  --color-chart-4: #9a7200;
+
+  --color-json-k: #0e7490;
+  --color-json-s: #2f7a1f;
+  --color-json-n: #5b6e46;
+  --color-json-b: #9a7200;
+
+  --color-btn-primary-text: #06110d;
+  --color-knob: #ffffff;
+  --color-avatar-text: #06110d;
+
+  --shadow: 0 12px 32px rgba(6, 17, 13, 0.1);
+}
