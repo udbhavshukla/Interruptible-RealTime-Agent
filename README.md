@@ -321,11 +321,5 @@ Backend rows rest on implementation evidence (bytecode + 110-test manifest); re-
 🌐 **Website:** [ADD FINAL DEPLOYED WEBSITE URL HERE]
 💻 **GitHub:** https://github.com/udbhavshukla/Interruptible-RealTime-Agent.git
 
-## Screenshots
-
-[ADD AURA OVERVIEW SCREENSHOT]
-[ADD LIVE AGENT SCREENSHOT]
-[ADD INTERRUPTION TRACE SCREENSHOT]
-
 ---
 *Latest Intent Wins · Perception Proposes, Verification Commits. Prototype documentation — mock-backed where noted; backend sections pending source restoration.*
