@@ -82,6 +82,7 @@ export default function LiveAgent() {
   return (
     <div className="page" style={{ maxWidth: 1560 }}>
       <PageHeader title="Live Agent" sub={`Real-time interruption demo · session sess_live · ${client.backend} backend`} />
+      <PageHeader title="Live Agent" sub="Real-time interruption demo · session sess_live · mock backend" />
       <div className="agent-grid">
         {/* Conversation */}
         <GlassCard>

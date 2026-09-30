@@ -28,6 +28,10 @@ export class RealAgentClient implements AgentClient {
     ws.onclose = () => { if (this.ws === ws) { this.connected = false; this.ws = null; } };
     ws.onmessage = (msg) => {
       if (this.ws !== ws) return; // stale socket: ignore its messages
+    this.ws = new WebSocket(this.url);
+    this.ws.onopen = () => { this.connected = true; };
+    this.ws.onclose = () => { this.connected = false; this.ws = null; };
+    this.ws.onmessage = (msg) => {
       try {
         const f = JSON.parse(msg.data as string) as Record<string, unknown>;
         const p = (f.payload ?? {}) as Record<string, unknown>;

@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { AuraEvent, Toast } from "../types";
 import { RealAgentClient } from "../services/RealAgentClient";
+import { MockAgentClient } from "../services/MockAgentClient";
 import type { AgentClient } from "../services/AgentClient";
 
 export interface Settings {
@@ -40,6 +41,7 @@ const TOASTABLE: Partial<Record<AuraEvent["type"], { title: string; tone: Toast[
 
 export function AuraProvider({ children }: { children: React.ReactNode }) {
   const [client] = useState<AgentClient>(() => new RealAgentClient());
+  const [client] = useState<AgentClient>(() => new MockAgentClient());
   const [connected, setConnected] = useState(false);
   const [events, setEvents] = useState<AuraEvent[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -63,12 +65,14 @@ export function AuraProvider({ children }: { children: React.ReactNode }) {
     // mirror that flag instead of assuming the handshake succeeded.
     setConnected(client.connected);
     const status = window.setInterval(() => setConnected(client.connected), 250);
+    setConnected(true);
     const unsub = client.onEvent((e) => {
       setEvents((prev) => [...prev.slice(-399), e]);
       const meta = TOASTABLE[e.type];
       if (meta) pushToast({ title: meta.title, body: e.summary, tone: meta.tone });
     });
     return () => { window.clearInterval(status); unsub(); client.disconnect(); };
+    return () => { unsub(); client.disconnect(); };
   }, [client, pushToast]);
 
   const value = useMemo(
