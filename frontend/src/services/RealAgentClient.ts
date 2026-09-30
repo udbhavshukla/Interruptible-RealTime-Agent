@@ -19,10 +19,15 @@ export class RealAgentClient implements AgentClient {
   constructor(private url = "ws://localhost:8000/ws") {}
 
   connect() {
-    this.ws = new WebSocket(this.url);
-    this.ws.onopen = () => { this.connected = true; };
-    this.ws.onclose = () => { this.connected = false; this.ws = null; };
-    this.ws.onmessage = (msg) => {
+    // StrictMode (or any reconnect) runs connect() again before the previous
+    // socket's close event lands: every handler must therefore act only on
+    // ITS OWN socket, or a stale onclose would null the live this.ws.
+    const ws = new WebSocket(this.url);
+    this.ws = ws;
+    ws.onopen = () => { if (this.ws === ws) this.connected = true; };
+    ws.onclose = () => { if (this.ws === ws) { this.connected = false; this.ws = null; } };
+    ws.onmessage = (msg) => {
+      if (this.ws !== ws) return; // stale socket: ignore its messages
       try {
         const f = JSON.parse(msg.data as string) as Record<string, unknown>;
         const p = (f.payload ?? {}) as Record<string, unknown>;
@@ -37,6 +42,19 @@ export class RealAgentClient implements AgentClient {
           summary: typeof p.summary === "string" ? p.summary : String(f.type ?? "event"),
           detail: p,
         };
+        if (e.type === "STALE_RESULT_REJECTED") {
+          // Version metadata for the execution panel: the backend transmits
+          // the superseded call's version as payload.spawn_version and
+          // stamps the current version on the frame as state_version, while
+          // the panel renders detail.resultVersion / detail.currentVersion —
+          // the exact shape MockAgentClient.ts:150 emits (drop-in parity).
+          // Map the transmitted values; never invent versions.
+          e.detail = {
+            ...p,
+            resultVersion: p.spawn_version,
+            currentVersion: e.stateVersion,
+          };
+        }
         if (p.snapshot && typeof p.snapshot === "object") {
           this.snapshots.set(e.sessionId, p.snapshot as SlotState);
         }
