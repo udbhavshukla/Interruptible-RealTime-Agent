@@ -1,0 +1,86 @@
+{
+  "id": "basic_task",
+  "description": "Mock evaluation scenario: user asks for a flight from Bangalore to Delhi and the system returns a single final response.",
+  "evaluation_only": true,
+  "uses_mock_data": true,
+
+  "user_input": "Find a flight from Bangalore to Delhi.",
+  "origin": "Bangalore",
+  "destination": "Delhi",
+  "tool_call_id": "call_flight_search_001",
+  "tool_name": "flight_search",
+  "expected_event_order": [
+    "USER_INPUT",
+    "FAST_ACK",
+    "TOOL_CALL",
+    "TOOL_RESULT",
+    "FINAL_RESPONSE"
+  ],
+  "expected_final_destination": "Delhi",
+
+  "events": [
+    {
+      "type": "USER_INPUT",
+      "timestamp": 0.0,
+      "payload": {
+        "user_input": "Find a flight from Bangalore to Delhi.",
+        "origin": "Bangalore",
+        "destination": "Delhi"
+      }
+    },
+    {
+      "type": "FAST_ACK",
+      "timestamp": 0.1,
+      "payload": {
+        "acknowledgement": "Looking up flights from Bangalore to Delhi.",
+        "acknowledged_input": "Find a flight from Bangalore to Delhi."
+      }
+    },
+    {
+      "type": "TOOL_CALL",
+      "timestamp": 0.2,
+      "payload": {
+        "tool_call_id": "call_flight_search_001",
+        "tool_name": "flight_search",
+        "origin": "Bangalore",
+        "destination": "Delhi"
+      }
+    },
+    {
+      "type": "TOOL_RESULT",
+      "timestamp": 1.0,
+      "payload": {
+        "tool_call_id": "call_flight_search_001",
+        "status": "success",
+        "origin": "Bangalore",
+        "destination": "Delhi",
+        "flights": [
+          {"flight_number": "AI-501", "departure": "06:30", "arrival": "08:45", "price_inr": 4299},
+          {"flight_number": "6E-2103", "departure": "09:15", "arrival": "11:25", "price_inr": 3899}
+        ]
+      }
+    },
+    {
+      "type": "FINAL_RESPONSE",
+      "timestamp": 1.2,
+      "payload": {
+        "response": "Here are flights from Bangalore to Delhi: AI-501 at 06:30 for ₹4,299 and 6E-2103 at 09:15 for ₹3,899.",
+        "origin": "Bangalore",
+        "destination": "Delhi",
+        "tool_call_id": "call_flight_search_001"
+      }
+    }
+  ],
+
+  "expected_metrics": {
+    "event_counts": {
+      "USER_INPUT": 1,
+      "FAST_ACK": 1,
+      "TOOL_CALL": 1,
+      "TOOL_RESULT": 1,
+      "FINAL_RESPONSE": 1
+    },
+    "interruption_count": 0,
+    "stale_result_count": 0
+  }
+}

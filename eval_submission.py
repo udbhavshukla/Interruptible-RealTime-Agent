@@ -189,6 +189,33 @@ def run_once(scenario: Dict, cls, time_scale: float, wall_cap_s: float,
     return score_scenario(scenario, trace)
 
 
+def is_kit_scenario(scenario: Dict[str, Any]) -> bool:
+    """True when *scenario* matches the streaming-harness schema.
+
+    The runner replays ``events[].timestamp_ms`` and the scorer grades
+    ``ground_truth``; both index ``scenario_id``.  Other files in the
+    scenario directory (evaluation traces, step-based fixtures) use
+    different schemas and must be skipped during discovery.
+    """
+    return bool(scenario.get("scenario_id")) and isinstance(
+        scenario.get("events"), list
+    )
+
+
+def kit_scenario_paths(scenario_dir: str) -> Tuple[List[str], List[str]]:
+    """Split ``*.json`` in *scenario_dir* into (compatible, skipped) paths."""
+    kept, skipped = [], []
+    for path in sorted(glob.glob(os.path.join(scenario_dir, "*.json"))):
+        try:
+            with open(path) as f:
+                scenario = json.load(f)
+        except (OSError, ValueError):
+            skipped.append(path)
+            continue
+        (kept if is_kit_scenario(scenario) else skipped).append(path)
+    return kept, skipped
+
+
 def evaluate(cls, scenario_paths: List[str], reps: int,
              time_scale: float, wall_cap_s: float,
              setup_cap_s: float = 300.0) -> Dict[str, Any]:
@@ -306,7 +333,9 @@ def main():
     print(f"STAGE 3 — scored evaluation "
           f"(reps={args.reps}, time_scale={args.time_scale}, "
           f"wall_cap={args.wall_cap}s, setup_cap={args.setup_cap}s, median per scenario)")
-    paths = sorted(glob.glob(os.path.join(args.scenarios, "*.json")))
+    paths, skipped = kit_scenario_paths(args.scenarios)
+    for path in skipped:
+        print(f"  [SKIP] non-harness scenario file: {path}")
     if not paths:
         sys.exit(f"no scenarios found in {args.scenarios}")
     report = evaluate(cls, paths, args.reps, args.time_scale, args.wall_cap, args.setup_cap)

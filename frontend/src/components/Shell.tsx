@@ -65,6 +65,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           </span>
         </div>
         <div className="side-foot-text" style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12, padding: "0 4px" }}>
+          <span style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--grad-brand)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flex: "none", color: "var(--color-avatar-text)" }}>◍</span>
+          <span style={{ fontSize: 12 }}><b style={{ display: "block" }}>AURA Operator</b><span style={{ color: "var(--text-faint)" }}>AI Operations</span></span>
           <span style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--grad-brand)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flex: "none", color: "var(--color-avatar-text)" }}>D</span>
           <span style={{ fontSize: 12 }}><b style={{ display: "block" }}>Demo User</b><span style={{ color: "var(--text-faint)" }}>Hackathon build</span></span>
         </div>
@@ -101,6 +103,7 @@ export function TopBar({ onPalette, onToggleSidebar }: { onPalette: () => void; 
       <button className="btn btn-ghost btn-sm tb-help" title={`Theme: ${mode} — click to switch`} aria-label={`Theme: ${mode}. Activate to switch theme.`} onClick={cycle}>{icon}</button>
       <button className="btn btn-ghost btn-sm" title="Notifications">🔔</button>
       <button className="btn btn-ghost btn-sm tb-help" title="Help">?</button>
+      <span style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--grad-brand)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "var(--color-avatar-text)" }}>◍</span>
       <span style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--grad-brand)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "var(--color-avatar-text)" }}>D</span>
     </header>
   );
