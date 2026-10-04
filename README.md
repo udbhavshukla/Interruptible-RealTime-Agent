@@ -11,7 +11,7 @@ AURA is an interruptible real-time execution architecture that keeps an AI agent
 
 🌐 **Website:** [AURA Live Website](https://interruptible-real-time-agent.vercel.app/)
 
-🎥 **Demo Video:** [Watch the AURA Demo](https://drive.google.com/drive/folders/1Ennxgx2lOPFOWgUtt2lR1oPX80RuxKdR?usp=drive_link)
+🎥 **Demo Video:** [Watch the AURA Demo](https://drive.google.com/file/d/1O8uaRFAlj2e6whZ-UNv8vH14g6BD7KTS/view?usp=sharing)
 
 💻 **GitHub Repository:** [Interruptible-RealTime-Agent](https://github.com/udbhavshukla/Interruptible-RealTime-Agent)
 > **Prototype status (read before evaluating).** The runnable prototype in this tree is the **React frontend** (`frontend/`) with a deterministic in-browser execution simulator that faithfully plays the versioned interrupt/cancel/stale-rejection protocol. The Python backend modules (`src/state`, `src/tools`, `src/multimodal`, `src/protocol`) were implemented during development — verified via in-tree bytecode remnants and a recorded 110-test pytest manifest with zero failures — but their **source files are not present in the current tree**, so backend tests cannot be re-run here until sources are restored. Sections 6–10 below describe those contracts as designed and previously implemented; anything not verifiable in-tree is marked **[VERIFY]**.
