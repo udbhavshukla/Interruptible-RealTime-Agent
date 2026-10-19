@@ -20,6 +20,7 @@ export default function LiveAgent() {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [results, setResults] = React.useState<FlightOption[]>([]);
   const [snapTick, setSnapTick] = React.useState(0);
+  const [provider, setProvider] = React.useState<string | null>(null);
   const seen = React.useRef(new Set<string>());
   const bottomRef = React.useRef<HTMLDivElement>(null);
 
@@ -38,6 +39,10 @@ export default function LiveAgent() {
         if (t) msgs.push({ id: e.id, role: "aura", text: t, ts: e.ts });
       }
       if (e.type === "TOOL_COMPLETED" || e.type === "FINAL_RESPONSE") setResults(client.getResults(SID));
+      if (e.type === "FINAL_RESPONSE") {
+        const p = e.detail?.provider;
+        if (typeof p === "string") setProvider(p);
+      }
       if (e.type === "STATE_UPDATED") setSnapTick((t) => t + 1);
     }
     if (msgs.length) setMessages((m) => [...m, ...msgs]);
@@ -81,8 +86,15 @@ export default function LiveAgent() {
 
   return (
     <div className="page" style={{ maxWidth: 1560 }}>
-      <PageHeader title="Live Agent" sub={`Real-time interruption demo · session sess_live · ${client.backend} backend`} />
-      <PageHeader title="Live Agent" sub="Real-time interruption demo · session sess_live · mock backend" />
+      <PageHeader
+        title="Live Agent"
+        sub={`Real-time interruption demo · session sess_live · ${client.backend} backend · ${
+          provider === "openai" ? "model answers"
+            : provider === "mock" ? "mock answers"
+              : provider === "none" ? "offline answers"
+                : "awaiting answer"
+        }`}
+      />
       <div className="agent-grid">
         {/* Conversation */}
         <GlassCard>

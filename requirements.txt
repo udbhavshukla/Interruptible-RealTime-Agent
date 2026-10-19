@@ -1,1 +1,5 @@
-pytest>=7
+# Runtime dependencies for the AURA backend / WebSocket server.
+# The offline default (no AURA_LLM_PROVIDER) needs no third-party LLM client:
+# aura.llm talks to any OpenAI-compatible endpoint over the standard library.
+fastapi>=0.115,<1
+uvicorn>=0.30,<1

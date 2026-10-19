@@ -38,8 +38,20 @@ export function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function backendStatus(client: { backend: "mock" | "real" }, connected: boolean) {
+  const live = client.backend === "real";
+  const online = live && connected;
+  return {
+    tone: online ? ("online" as const) : live ? ("bad" as const) : ("warn" as const),
+    label: online ? "Agent Online" : live ? "Offline" : "Simulator",
+    detail: online ? "WebSocket connected" : live ? "reconnecting…" : "Local demo data",
+    badge: online ? "green" : live ? "red" : "amber",
+  };
+}
+
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { connected } = useAura();
+  const { connected, client } = useAura();
+  const status = backendStatus(client, connected);
   const render = (items: typeof NAV_MAIN) =>
     items.map((n) => (
       <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-item${isActive ? " active" : ""}`} title={n.label}>
@@ -58,17 +70,17 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       </div>
       <div style={{ padding: 14, borderTop: "1px solid var(--glass-border)" }}>
         <div className="glass" style={{ borderRadius: 12, padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
-          <StatusDot tone={connected ? "online" : "bad"} />
+          <StatusDot tone={status.tone} />
           <span className="side-foot-text" style={{ fontSize: 12 }}>
-            <b style={{ display: "block" }}>{connected ? "Agent Online" : "Offline"}</b>
-            <span style={{ color: "var(--text-faint)" }}>{connected ? "WebSocket connected" : "reconnecting…"}</span>
+            <b style={{ display: "block" }}>{status.label}</b>
+            <span style={{ color: "var(--text-faint)" }}>{status.detail}</span>
           </span>
         </div>
         <div className="side-foot-text" style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12, padding: "0 4px" }}>
           <span style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--grad-brand)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flex: "none", color: "var(--color-avatar-text)" }}>◍</span>
           <span style={{ fontSize: 12 }}><b style={{ display: "block" }}>AURA Operator</b><span style={{ color: "var(--text-faint)" }}>AI Operations</span></span>
           <span style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--grad-brand)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flex: "none", color: "var(--color-avatar-text)" }}>D</span>
-          <span style={{ fontSize: 12 }}><b style={{ display: "block" }}>Demo User</b><span style={{ color: "var(--text-faint)" }}>Hackathon build</span></span>
+          <span style={{ fontSize: 12 }}><b style={{ display: "block" }}>Demo User</b><span style={{ color: "var(--text-faint)" }}>Preview build</span></span>
         </div>
         <button className="btn btn-ghost btn-sm side-foot-text" style={{ marginTop: 10, width: "100%", justifyContent: "center" }} onClick={onToggle}>
           {collapsed ? "→" : "← Collapse"}
@@ -86,7 +98,8 @@ const TITLES: Record<string, string> = {
 
 export function TopBar({ onPalette, onToggleSidebar }: { onPalette: () => void; onToggleSidebar: () => void }) {
   const { pathname } = useLocation();
-  const { connected } = useAura();
+  const { connected, client } = useAura();
+  const status = backendStatus(client, connected);
   const { mode, setMode } = useTheme();
   const title = TITLES[pathname] ?? "AURA";
   const cycle = () => setMode(mode === "dark" ? "light" : mode === "light" ? "system" : "dark");
@@ -99,7 +112,7 @@ export function TopBar({ onPalette, onToggleSidebar }: { onPalette: () => void; 
         ⌕ Search or command… <span className="mono" style={{ fontSize: 11, opacity: 0.7 }}>⌘K</span>
       </button>
       <div style={{ flex: 1 }} />
-      <span className="badge green"><StatusDot tone={connected ? "online" : "bad"} />&nbsp;{connected ? "Agent Online" : "Offline"}</span>
+      <span className={`badge ${status.badge}`}><StatusDot tone={status.tone} />&nbsp;{status.label}</span>
       <button className="btn btn-ghost btn-sm tb-help" title={`Theme: ${mode} — click to switch`} aria-label={`Theme: ${mode}. Activate to switch theme.`} onClick={cycle}>{icon}</button>
       <button className="btn btn-ghost btn-sm" title="Notifications">🔔</button>
       <button className="btn btn-ghost btn-sm tb-help" title="Help">?</button>

@@ -96,6 +96,10 @@ from typing import Any, Dict, Optional, Set
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from aura.assistant.responder import AssistantResponder
+from aura.llm.config import ProviderConfig
+from aura.llm.mock_llm import MockLLMProvider
+from aura.llm.openai_compatible import OpenAICompatibleProvider
 from aura.runtime import (
     Coordinator,
     Event,
@@ -618,10 +622,17 @@ async def _server_tool(
 class _Session:
     """Runtime state owned by exactly one WebSocket connection."""
 
-    def __init__(self, session_id: str, websocket: WebSocket) -> None:
+    def __init__(
+        self,
+        session_id: str,
+        websocket: WebSocket,
+        responder: Optional[AssistantResponder] = None,
+    ) -> None:
         self.session_id = session_id
         self.websocket = websocket
         self.tool_name = DEFAULT_TOOL_NAME
+        # None -> deterministic answers only; no model call is attempted.
+        self.responder = responder
 
         # Bounded server tool (see _server_tool): satisfies the
         # Coordinator's tool contract exactly and always finishes — unlike
@@ -795,12 +806,16 @@ def _answer_text(result: Any) -> str:
     return f"{head}. Simulated demo results — not real or currently available."
 
 
-def _final_response_frame(session: _Session, call_id: str) -> Dict[str, Any]:
+def _final_response_frame(
+    session: _Session, call_id: str, aura_text: Optional[str] = None
+) -> Dict[str, Any]:
     """Final answer frame for a gate-accepted result (``payload.auraText``).
 
     Only ever built from ``Coordinator.accepted_results`` — outcomes the
     Acceptance Gate admitted as accepted **and** current — so a cancelled
-    or stale call can never produce a FINAL_RESPONSE.
+    or stale call can never produce a FINAL_RESPONSE. ``aura_text`` lets the
+    caller substitute model-generated phrasing; the deterministic answer is
+    the fallback.
     """
     coordinator = session.coordinator
     result = coordinator.accepted_results.get(call_id)
@@ -809,15 +824,33 @@ def _final_response_frame(session: _Session, call_id: str) -> Dict[str, Any]:
     except Exception:
         # Registry records are never deleted; this is belt-and-braces only.
         version = coordinator.current_version
+    responder = session.responder
     payload: Dict[str, Any] = {
         "summary": "Results ready",  # MockAgentClient.ts:114
         "call_id": call_id,
         "tool_name": session.tool_name,
-        "auraText": _answer_text(result),
+        "auraText": (aura_text or "").strip() or _answer_text(result),
+        # Provenance: "openai" (model-generated), "mock" (in-process provider),
+        # or "none" (deterministic offline answer). Never inferred by the UI.
+        "provider": responder.provider_name if responder is not None else "none",
     }
     if isinstance(result, dict) and isinstance(result.get("options"), list):
         # The quotes ride along (additive) for the results panel.
         payload["options"] = result["options"]
+    if isinstance(result, dict):
+        # Authoritative snapshot for the state panel: derived only from the
+        # gate-accepted result and the session's current intent, so a
+        # cancelled or stale call can never populate it.
+        state = coordinator.state
+        payload["snapshot"] = {
+            "origin": result.get("origin", "—"),
+            "destination": result.get("destination", "—"),
+            "date": result.get("date") or "—",
+            "passengers": 1,
+            "intent": getattr(state, "intent", None) or "Flight Search",
+            "version": version,
+            "status": "READY",
+        }
     return {
         "type": "FINAL_RESPONSE",
         "session_id": session.session_id,
@@ -828,10 +861,56 @@ def _final_response_frame(session: _Session, call_id: str) -> Dict[str, Any]:
     }
 
 
+# ------------------------------------------------------------- model provider
+def _build_responder() -> Optional[AssistantResponder]:
+    """Build the process-wide responder from ``AURA_LLM_*`` config.
+
+    ``none`` (the default) yields a responder with no provider: answers stay
+    the deterministic, fully offline text so the demo needs no credentials.
+    ``mock`` wires the in-process provider. ``openai`` wires an
+    OpenAI-compatible HTTP client. Never raises: a misconfiguration degrades
+    to the offline responder and is logged, so a bad key cannot take the
+    server down.
+    """
+    try:
+        config = ProviderConfig.from_env()
+    except ValueError:
+        logger.warning("invalid AURA_LLM_* configuration; using offline answers")
+        return AssistantResponder(fallback=_answer_text)
+
+    if config.provider == "mock":
+        provider: Optional[Any] = MockLLMProvider()
+    elif config.provider == "openai":
+        try:
+            provider = OpenAICompatibleProvider(
+                base_url=config.base_url,
+                api_key=config.api_key,
+                model=config.model,
+                timeout_s=config.timeout_s,
+            )
+        except ValueError:
+            logger.warning("invalid OpenAI-compatible config; using offline answers")
+            provider = None
+    else:
+        provider = None
+
+    logger.info("assistant provider: %s", config.redacted() if provider else "offline")
+    return AssistantResponder(
+        provider,
+        fallback=_answer_text,
+        timeout_s=config.timeout_s,
+    )
+
+
+#: Single responder shared by every session (provider clients are stateless
+#: per request; the runtime's isolation guarantees live in Coordinator).
+_RESPONDER = _build_responder()
+
+
 # ------------------------------------------------------------------- lifecycle
 def _open_session(session_id: str, websocket: WebSocket) -> _Session:
     """Create the session's Coordinator and start its single consumer."""
-    session = _Session(session_id, websocket)
+    session = _Session(session_id, websocket, responder=_RESPONDER)
     _sessions[session_id] = session
     # Exactly one run() per session; it is the session's only consumer.
     session.run_task = asyncio.create_task(
@@ -937,8 +1016,25 @@ async def _forward(session: _Session) -> None:
                     continue
                 session.completed_sent.add(call_id)
                 await session.send_frame(_completion_frame(session, call_id))
+                result = coordinator.accepted_results.get(call_id)
+                try:
+                    version = coordinator.registry.get(call_id).spawn_version
+                except Exception:
+                    version = coordinator.current_version
+                aura_text: Optional[str] = None
+                responder = session.responder
+                if responder is not None and responder.available:
+                    intent = getattr(coordinator.state, "intent", "") or ""
+                    aura_text = await responder.respond(
+                        intent=intent, tool_result=result, state_version=version
+                    )
+                    # Generation is not instantaneous: if the user revised
+                    # their instruction meanwhile, the newest intent wins and
+                    # this now-stale answer is dropped, never displayed.
+                    if coordinator.current_version != version:
+                        continue
                 await session.send_frame(
-                    _final_response_frame(session, call_id)
+                    _final_response_frame(session, call_id, aura_text=aura_text)
                 )
 
             await asyncio.sleep(FORWARD_INTERVAL_S)

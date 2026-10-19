@@ -2,6 +2,8 @@
   "name": "aura-frontend",
   "private": true,
   "version": "0.1.0",
+  "description": "AURA — an AI assistant that adapts to your latest intent",
+  "homepage": "https://interruptible-real-time-agent.vercel.app/",
   "type": "module",
   "scripts": {
     "dev": "vite",
