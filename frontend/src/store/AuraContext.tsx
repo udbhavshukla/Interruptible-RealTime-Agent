@@ -40,8 +40,7 @@ const TOASTABLE: Partial<Record<AuraEvent["type"], { title: string; tone: Toast[
 };
 
 export function AuraProvider({ children }: { children: React.ReactNode }) {
-  const [client] = useState<AgentClient>(() => new RealAgentClient());
-  const [client] = useState<AgentClient>(() => new MockAgentClient());
+  const [client, setClient] = useState<AgentClient>(() => new RealAgentClient());
   const [connected, setConnected] = useState(false);
   const [events, setEvents] = useState<AuraEvent[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -65,14 +64,30 @@ export function AuraProvider({ children }: { children: React.ReactNode }) {
     // mirror that flag instead of assuming the handshake succeeded.
     setConnected(client.connected);
     const status = window.setInterval(() => setConnected(client.connected), 250);
-    setConnected(true);
+    // Graceful degradation: if the real backend is unreachable, fall back to
+    // the deterministic in-browser simulator so the demo still works. The
+    // toast states this plainly; no mock result is ever presented as live.
+    const fallback = window.setTimeout(() => {
+      if (client.backend === "real" && !client.connected) {
+        pushToast({
+          title: "Backend unavailable",
+          body: "Using the local simulator instead.",
+          tone: "amber",
+        });
+        setClient(new MockAgentClient());
+      }
+    }, 1500);
     const unsub = client.onEvent((e) => {
       setEvents((prev) => [...prev.slice(-399), e]);
       const meta = TOASTABLE[e.type];
       if (meta) pushToast({ title: meta.title, body: e.summary, tone: meta.tone });
     });
-    return () => { window.clearInterval(status); unsub(); client.disconnect(); };
-    return () => { unsub(); client.disconnect(); };
+    return () => {
+      window.clearInterval(status);
+      window.clearTimeout(fallback);
+      unsub();
+      client.disconnect();
+    };
   }, [client, pushToast]);
 
   const value = useMemo(

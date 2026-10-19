@@ -35,7 +35,7 @@ from aura.runtime.events import EventType
 from aura.runtime.registry import TaskState
 from aura.runtime.state import SessionState
 
-#: The exact presentation output the hackathon demo must print.
+#: The exact presentation output the demo must print.
 EXPECTED_TRACE = (
     "[USER] Find flight Bangalore to Delhi",
     "[STATE] version=1",

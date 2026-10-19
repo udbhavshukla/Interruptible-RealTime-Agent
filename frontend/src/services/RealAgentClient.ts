@@ -1,8 +1,8 @@
 import type { AuraEvent, FlightOption, SlotState } from "../types";
 import type { AgentClient, EventHandler, Unsub } from "./AgentClient";
 
-/** Real backend integration point (M2). Speaks the AURA event protocol
- *  over WebSocket; frame shapes mirror backend Event/Action dicts.
+/** Real backend integration point. Speaks the AURA event protocol over
+ *  WebSocket; frame shapes mirror backend Event/Action dicts.
  *  Drop-in replacement for MockAgentClient — no UI changes required.
  *
  *  Outgoing frames: {kind:"text"|"interrupt"|"audio"|"image", session_id, ...}
@@ -16,7 +16,9 @@ export class RealAgentClient implements AgentClient {
   private n = 0;
   private snapshots = new Map<string, SlotState>();
   private results = new Map<string, FlightOption[]>();
-  constructor(private url = "ws://localhost:8000/ws") {}
+  constructor(
+    private url: string = import.meta.env.VITE_WS_URL ?? "ws://localhost:8000/ws"
+  ) {}
 
   connect() {
     // StrictMode (or any reconnect) runs connect() again before the previous
@@ -25,13 +27,12 @@ export class RealAgentClient implements AgentClient {
     const ws = new WebSocket(this.url);
     this.ws = ws;
     ws.onopen = () => { if (this.ws === ws) this.connected = true; };
-    ws.onclose = () => { if (this.ws === ws) { this.connected = false; this.ws = null; } };
+    ws.onclose = () => {
+      if (this.ws === ws) { this.connected = false; this.ws = null; }
+    };
+    ws.onerror = () => { if (this.ws === ws) this.connected = false; };
     ws.onmessage = (msg) => {
       if (this.ws !== ws) return; // stale socket: ignore its messages
-    this.ws = new WebSocket(this.url);
-    this.ws.onopen = () => { this.connected = true; };
-    this.ws.onclose = () => { this.connected = false; this.ws = null; };
-    this.ws.onmessage = (msg) => {
       try {
         const f = JSON.parse(msg.data as string) as Record<string, unknown>;
         const p = (f.payload ?? {}) as Record<string, unknown>;
@@ -51,8 +52,8 @@ export class RealAgentClient implements AgentClient {
           // the superseded call's version as payload.spawn_version and
           // stamps the current version on the frame as state_version, while
           // the panel renders detail.resultVersion / detail.currentVersion —
-          // the exact shape MockAgentClient.ts:150 emits (drop-in parity).
-          // Map the transmitted values; never invent versions.
+          // the exact shape MockAgentClient emits (drop-in parity). Map the
+          // transmitted values; never invent versions.
           e.detail = {
             ...p,
             resultVersion: p.spawn_version,
@@ -62,11 +63,21 @@ export class RealAgentClient implements AgentClient {
         if (p.snapshot && typeof p.snapshot === "object") {
           this.snapshots.set(e.sessionId, p.snapshot as SlotState);
         }
+        if (e.type === "FINAL_RESPONSE" && Array.isArray(p.options)) {
+          // The backend rides the accepted quotes along on the final frame;
+          // surface them for the results panel (MockAgentClient parity).
+          this.results.set(e.sessionId, p.options as FlightOption[]);
+        }
         for (const h of this.handlers) h(e);
       } catch { /* malformed frame: ignore, never crash UI */ }
     };
   }
-  disconnect() { this.ws?.close(); this.ws = null; this.connected = false; }
+  disconnect() {
+    const ws = this.ws;
+    this.ws = null;
+    this.connected = false;
+    ws?.close();
+  }
   onEvent(h: EventHandler): Unsub { this.handlers.add(h); return () => { this.handlers.delete(h); }; }
 
   private send(frame: Record<string, unknown>) {

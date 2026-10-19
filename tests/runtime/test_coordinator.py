@@ -235,9 +235,10 @@ class OrderingTests(CoordinatorTestCase):
         ]
         self.assertEqual(transitions, [(0, 1), (1, 2), (2, 3)])
         
-        # wait until every tool body actually began before reading its record
-        for call_id in ("call_001", "call_002", "call_003"):
-            await asyncio.wait_for(tool.started.setdefault(call_id, asyncio.Event()).wait(), TOOL_TIMEOUT)
+        # Registry records are created synchronously at spawn, before the
+        # tool coroutine runs. Earlier calls are cancelled by the following
+        # intents and may never execute their body, so asserting on tool
+        # start here would be racy; assert the spawn versions directly.
         self.assertEqual(
             [record.spawn_version for record in coordinator.registry.records()],
             [1, 2, 3],
